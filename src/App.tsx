@@ -13,18 +13,33 @@ export default function App() {
   const [ingredients, setIngredients] = useState<string>("");
   const [recipe, setRecipe] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
+    setError("");
+    setRecipe("");
     try {
-      const response = await client.queries.askBedrock({
-        ingredients: [ingredients],
-      });
-      const res = JSON.parse(response.data?.body || "{}");
-      setRecipe(res.recipe || "No recipe found");
-    } catch (error) {
-      console.error(error);
+      const list = ingredients
+        .split(",")
+        .map((i) => i.trim())
+        .filter(Boolean);
+      if (list.length === 0) {
+        setError("Please enter at least one ingredient.");
+        return;
+      }
+      const response = await client.queries.askBedrock(
+        { ingredients: list },
+        { authMode: "userPool" }
+      );
+      if (response.errors?.length) {
+        throw new Error(response.errors[0].message);
+      }
+      setRecipe(response.data?.body || "No recipe found");
+    } catch (err) {
+      console.error(err);
+      setError("Something went wrong generating your recipe. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -48,6 +63,7 @@ export default function App() {
             className="wide-input"
             id="ingredients"
             name="ingredients"
+            value={ingredients}
             placeholder="Ingredient 1, Ingredient 2, Ingredient 3"
             onChange={(e) => setIngredients(e.target.value)}
           />
@@ -63,9 +79,10 @@ export default function App() {
             <p>Thinking up something delicious...</p>
           </div>
         )}
+        {error && !loading && <p className="error">{error}</p>}
         {recipe && !loading && (
           <div className="result">
-            <p>{recipe}</p>
+            <p style={{ whiteSpace: "pre-wrap" }}>{recipe}</p>
           </div>
         )}
       </div>
